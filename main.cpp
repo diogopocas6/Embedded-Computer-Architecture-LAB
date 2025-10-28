@@ -190,12 +190,21 @@ void loop()
     SOKButton = !digitalRead(SOK_BUT);
     SESCButton = !digitalRead(SESC_BUT);
     SNEXTButton = !digitalRead(SNEXT_BUT);
-
-
+    
+    //Debugging
+    
+    /*
+    if (SOKButton){
+      Serial.printf("Butão Apertado");
+    } 
+    */
+    
+    if (fsm1.state == fsm_menu){Serial.printf("State = Menu\n");}
+    if (fsm1.state == fsm_Not_pressed){Serial.printf("State = Not pressed\n");}
+    if (fsm1.state == fsm_pressing){Serial.printf("State = Pressing\n");}
     // Place here the state machines
-    // ...
     // Transições Not Pressed
-  if (fsm1.state == fsm_Not_pressed && SOK_BUT) {
+  if (fsm1.state == fsm_Not_pressed && SOKButton) {
     set_state(fsm1, fsm_pressing);
   }
 
@@ -206,23 +215,27 @@ void loop()
     //
     //
     display.clearDisplay();
-    display.setTextSize(1);      // Normal 1:1 pixel scale
-    display.setTextColor(SSD1306_WHITE); // Draw white text
-    display.setCursor(0, 32);
-
+    display.setCursor(64,0);
+    display.printf("Menu");
+    display.setCursor(0,16);
+    display.printf("Calibrate");
+    display.setCursor(0,32);
+    display.printf("Show accelerometer values");
+    display.display();
   }
+
   if (fsm1.state == fsm_pressing && !SOKButton){  //PRESSING -> NOT PRESSED
     set_state(fsm1,fsm_Not_pressed);
   }
 
 
   // Transições Menu
-  if (fsm1.state == fsm_menu && SESC_BUT) { //Menu -> NOT PRESSED
+  if (fsm1.state == fsm_menu && SESCButton) { //Menu -> NOT PRESSED
     set_state(fsm1, fsm_Not_pressed);
   }
   //OUTPUTS
 
-  if(fsm1.state == fsm_Not_pressed && fsm1.state == fsm_pressing){
+  if(fsm1.state == fsm_Not_pressed || fsm1.state == fsm_pressing){
     // OLED output
     display.clearDisplay();
 
