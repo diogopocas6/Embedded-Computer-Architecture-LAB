@@ -42,28 +42,62 @@ uint32_t interval, last_cycle;
 uint32_t loop_micros;
 uint32_t cycle_count;
 
+#define SOK_BUT 2
+#define SNEXT_BUT 3
+#define SESC_BUT 4
+
+typedef struct {
+  int state, new_state;
+
+  // tes - time entering state
+  // tis - time in state
+  unsigned long tes, tis;
+} fsm_t;
+
+enum {
+  fsm_Not_pressed = 0,
+  fsm_pressing = 1,
+  fsm_menu = 2
+};
+
+fsm_t fsm1;
+bool SOKButton, SESCButton, SNEXTButton;
+
 void set_interval(float new_interval)
 {
   interval = new_interval * 1000000L;   // In microseconds
 }  
+
+void set_state(fsm_t &fsm, int new_state) {
+  if (fsm.state != new_state) {
+    fsm.state = new_state;
+    fsm.tis = 0;
+    fsm.tes = millis();
+  }
+}
 
 void setup() 
 {
   // Builtin LED
   pinMode(LED_BUILTIN, OUTPUT);
 
+  pinMode(SOK_BUT, INPUT_PULLUP);
+  pinMode(SNEXT_BUT, INPUT_PULLUP);
+  pinMode(SESC_BUT,INPUT_PULLUP);
+  
   Serial.begin(115200);
 
   // Our cycle time
-  //set_interval(20e-3); // 20 ms -> 50 Hz
-  set_interval(5); // 5 segundos
+  set_interval(20e-3); // 20 ms -> 50 Hz
+  //set_interval(5); // 5 segundos
 
   // IMU initalization
   const int I2C0_SDA = 20;
   const int I2C0_SCL = 21;
   pinMode(I2C0_SDA, INPUT_PULLUP);
   pinMode(I2C0_SCL, INPUT_PULLUP);
-  
+
+  set_state(fsm1, fsm_Not_pressed); //inicializa maquina estados
   Wire.setSDA(I2C0_SDA);
   Wire.setSCL(I2C0_SCL);
   Wire.begin();
@@ -150,12 +184,45 @@ void loop()
       imu.a.z = mpu.getAccZ();
     }
 
+    fsm1.tis = millis() - fsm1.tes;
     // Read the buttons
     // ...
+    SOKButton = !digitalRead(SOK_BUT);
+    SESCButton = !digitalRead(SESC_BUT);
+    SNEXTButton = !digitalRead(SNEXT_BUT);
+
 
     // Place here the state machines
     // ...
+    // Transições Not Pressed
+  if (fsm1.state == fsm_Not_pressed && SOK_BUT) {
+    set_state(fsm1, fsm_pressing);
+  }
 
+    // Transições Pressing
+  if (fsm1.state == fsm_pressing && fsm1.tis >= 2000 && SOKButton) {  // PRESSING -> MENU
+    set_state(fsm1, fsm_menu);
+    //AQUI ESCREVER O DISPLAY DO MENU !!!
+    //
+    //
+    display.clearDisplay();
+    display.setTextSize(1);      // Normal 1:1 pixel scale
+    display.setTextColor(SSD1306_WHITE); // Draw white text
+    display.setCursor(0, 32);
+
+  }
+  if (fsm1.state == fsm_pressing && !SOKButton){  //PRESSING -> NOT PRESSED
+    set_state(fsm1,fsm_Not_pressed);
+  }
+
+
+  // Transições Menu
+  if (fsm1.state == fsm_menu && SESC_BUT) { //Menu -> NOT PRESSED
+    set_state(fsm1, fsm_Not_pressed);
+  }
+  //OUTPUTS
+
+  if(fsm1.state == fsm_Not_pressed && fsm1.state == fsm_pressing){
     // OLED output
     display.clearDisplay();
 
@@ -194,6 +261,6 @@ void loop()
     Serial.print(micros() - now);
 
     Serial.println();
+    }
   }
-
 }
