@@ -1,0 +1,86 @@
+#include <Arduino.h>
+
+#define SOK_BUT 2
+#define SNEXT_BUT 3
+#define SESC_BUT 4
+
+typedef struct {
+  int state, new_state;
+
+  // tes - time entering state
+  // tis - time in state
+  unsigned long tes, tis;
+} fsm_t;
+
+enum {
+  fsm_Not_pressed = 0,
+  fsm_pressing = 1,
+  fsm_menu = 2
+};
+
+fsm_t fsm1;
+bool SOKButton, SESCButton, SNEXTButton;
+
+void set_state(fsm_t &fsm, int new_state) {
+  if (fsm.state != new_state) {
+    fsm.state = new_state;
+    fsm.tis = 0;
+    fsm.tes = millis();
+  }
+}
+
+void setup() {
+  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(SOK_BUT, INPUT_PULLUP);
+  pinMode(SNEXT_BUT, INPUT_PULLUP);
+  pinMode(SESC_BUT,INPUT_PULLUP);
+  set_state(fsm1, fsm_Not_pressed);
+}
+
+void loop() {
+  fsm1.tis = millis() - fsm1.tes;
+  SOKButton = !digitalRead(SOK_BUT);
+  SESCButton = !digitalRead(SESC_BUT);
+  SNEXTButton = !digitalRead(SNEXT_BUT);
+  
+  // Transições Not Pressed
+  if (fsm1.state == fsm_Not_pressed && SOK_BUT) {
+    set_state(fsm1, fsm_pressing);
+  }
+
+    // Transições Pressing
+  if (fsm1.state == fsm_pressing && fsm1.tis >= 2000 && SOKButton) {  // PRESSING -> MENU
+    set_state(fsm1, fsm_menu);
+    //AQUI ESCREVER O DISPLAY DO MENU !!!
+    //
+    //
+
+
+  }
+  if (fsm1.state == fsm_pressing && !SOKButton){  //PRESSING -> NOT PRESSED
+    set_state(fsm1,fsm_Not_pressed);
+  }
+
+
+  // Transições Menu
+  if (fsm1.state == fsm_menu && SESC_BUT) { //Menu -> NOT PRESSED
+    set_state(fsm1, fsm_Not_pressed);
+  }
+
+
+  //Outputs
+
+  /*  if (fsm1.state == fsm_off) {
+    digitalWrite(LED1_pin, LOW);
+  }
+
+  if (fsm1.state == fsm_on) {
+    digitalWrite(LED1_pin, HIGH);
+  }
+
+  if (fsm1.state == fsm_start) {
+    digitalWrite(LED1_pin, LOW);
+  }
+  */
+ 
+}
