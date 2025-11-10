@@ -57,11 +57,14 @@ typedef struct {
 enum {
   fsm_Not_pressed = 0,
   fsm_pressing = 1,
-  fsm_menu = 2
+  fsm_menu = 2,
+  fsm_calibrate = 3,
+  fsm_show_values = 4
 };
 
 fsm_t fsm1;
 bool SOKButton, SESCButton, SNEXTButton;
+int count=0;
 
 void set_interval(float new_interval)
 {
@@ -80,7 +83,6 @@ void setup()
 {
   // Builtin LED
   pinMode(LED_BUILTIN, OUTPUT);
-
   pinMode(SOK_BUT, INPUT_PULLUP);
   pinMode(SNEXT_BUT, INPUT_PULLUP);
   pinMode(SESC_BUT,INPUT_PULLUP);
@@ -211,6 +213,7 @@ void loop()
     // Transições Pressing
   if (fsm1.state == fsm_pressing && fsm1.tis >= 2000 && SOKButton) {  // PRESSING -> MENU
     set_state(fsm1, fsm_menu);
+    count = 0;
     //AQUI ESCREVER O DISPLAY DO MENU !!!
     //
     //
@@ -221,6 +224,7 @@ void loop()
     display.printf("Calibrate");
     display.setCursor(0,32);
     display.printf("Show accelerometer values");
+    display.printf("Count = %d\n", count);
     display.display();
   }
 
@@ -234,7 +238,20 @@ void loop()
     set_state(fsm1, fsm_Not_pressed);
   }
   //OUTPUTS
-
+  if (fsm1.state == fsm_menu){
+    //AQUI ESCREVER O DISPLAY DO MENU !!!
+    //
+    //
+    display.clearDisplay();
+    display.setCursor(64,0);
+    display.printf("Menu");
+    display.setCursor(0,16);
+    display.printf("Calibrate");
+    display.setCursor(0,32);
+    display.printf("Show accelerometer values");
+    display.printf("Count = %d\n", count);
+    display.display();
+  }
   if(fsm1.state == fsm_Not_pressed || fsm1.state == fsm_pressing){
     // OLED output
     display.clearDisplay();
@@ -274,6 +291,16 @@ void loop()
     Serial.print(micros() - now);
 
     Serial.println();
+    }
+
+
+    // muda valor contador se tiver no menu
+    if (fsm1.state == fsm_menu && SNEXTButton){
+      if (count == 2){
+        count = 0;
+      }
+      else
+      count = count + 1;
     }
   }
 }
