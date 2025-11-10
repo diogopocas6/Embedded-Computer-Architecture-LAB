@@ -214,18 +214,6 @@ void loop()
   if (fsm1.state == fsm_pressing && fsm1.tis >= 2000 && SOKButton) {  // PRESSING -> MENU
     set_state(fsm1, fsm_menu);
     count = 0;
-    //AQUI ESCREVER O DISPLAY DO MENU !!!
-    //
-    //
-    display.clearDisplay();
-    display.setCursor(64,0);
-    display.printf("Menu");
-    display.setCursor(0,16);
-    display.printf("Calibrate");
-    display.setCursor(0,32);
-    display.printf("Show accelerometer values");
-    display.printf("Count = %d\n", count);
-    display.display();
   }
 
   if (fsm1.state == fsm_pressing && !SOKButton){  //PRESSING -> NOT PRESSED
