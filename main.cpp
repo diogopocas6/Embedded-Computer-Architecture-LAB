@@ -58,13 +58,18 @@ enum {
   fsm_Not_pressed = 0,
   fsm_pressing = 1,
   fsm_menu = 2,
-  fsm_calibrate = 3,
-  fsm_show_values = 4
+  fsm_calibrating = 3,
+  fsm_calibrated = 4,
+  fsm_show_values = 5
 };
 
 fsm_t fsm1;
 bool SOKButton, SESCButton, SNEXTButton;
-int count=0;
+int count_menu=0;
+int count_calibrate=0;
+
+float wx_calibrated, wy_calibrated, wz_calibrated, ax_calibrated, ay_calibrated, az_calibrated;
+float wx_total, wy_calibrated, wz_calibrated, ax_calibrated, ay_calibrated, az_calibrated;
 
 void set_interval(float new_interval)
 {
@@ -88,10 +93,8 @@ void setup()
   pinMode(SESC_BUT,INPUT_PULLUP);
   
   Serial.begin(115200);
-
   // Our cycle time
   set_interval(20e-3); // 20 ms -> 50 Hz
-  //set_interval(5); // 5 segundos
 
   // IMU initalization
   const int I2C0_SDA = 20;
@@ -204,6 +207,10 @@ void loop()
     if (fsm1.state == fsm_menu){Serial.printf("State = Menu\n");}
     if (fsm1.state == fsm_Not_pressed){Serial.printf("State = Not pressed\n");}
     if (fsm1.state == fsm_pressing){Serial.printf("State = Pressing\n");}
+    if (fsm1.state == fsm_calibrating){Serial.printf("State = Calibrating\n");}
+    if (fsm1.state == fsm_calibrated){Serial.printf("State = Calibrated\n");}
+    if (fsm1.state == fsm_show_values){Serial.printf("State = Show values\n");}
+    
     // Place here the state machines
     // Transições Not Pressed
   if (fsm1.state == fsm_Not_pressed && SOKButton) {
@@ -213,7 +220,7 @@ void loop()
     // Transições Pressing
   if (fsm1.state == fsm_pressing && fsm1.tis >= 2000 && SOKButton) {  // PRESSING -> MENU
     set_state(fsm1, fsm_menu);
-    count = 0;
+    count_menu = 0;
   }
 
   if (fsm1.state == fsm_pressing && !SOKButton){  //PRESSING -> NOT PRESSED
@@ -225,7 +232,33 @@ void loop()
   if (fsm1.state == fsm_menu && SESCButton) { //Menu -> NOT PRESSED
     set_state(fsm1, fsm_Not_pressed);
   }
+  if (fsm1.state == fsm_menu && count_menu == 1 && SOKButton){  //Menu -> Calibrating 
+    wx_calibrated = 0;    //resetamos os valores calibrados
+    set_state(fsm1,fsm_calibrating);
+    //count_calibrate=0;
+  }
+  if (fsm1.state == fsm_menu && count_menu == 2 && SOKButton){  //Menu -> Show values
+    set_state(fsm1,fsm_show_values);
+  }
+
+  //Transições Calibrating
+  if (fsm1.state == fsm_calibrating && fsm1.tis >= 2000){
+    set_state(fsm1,fsm_calibrated);
+    wx_calibrated = wx_total / count_calibrate;
+  } 
+  //Transições Calibrated
+  if (fsm1.state == fsm_calibrated && fsm1.tis >=3000){
+    set_state(fsm1,fsm_menu);
+    count_calibrate = 0;
+  }
+  //Transições Show Values
+  if (fsm1.state == fsm_show_values && SESCButton){
+    set_state(fsm1, fsm_Not_pressed);
+  }
+
   //OUTPUTS
+
+  //OUTPUT MENU
   if (fsm1.state == fsm_menu){
     //AQUI ESCREVER O DISPLAY DO MENU !!!
     //
@@ -237,9 +270,10 @@ void loop()
     display.printf("Calibrate");
     display.setCursor(0,32);
     display.printf("Show accelerometer values");
-    display.printf("Count = %d\n", count);
+    display.printf("Count = %d\n", count_menu);
     display.display();
   }
+  //OUTPUT NOT_PRESSED OU PRESSING
   if(fsm1.state == fsm_Not_pressed || fsm1.state == fsm_pressing){
     // OLED output
     display.clearDisplay();
@@ -281,14 +315,41 @@ void loop()
     Serial.println();
     }
 
+    if (fsm1.state == fsm_show_values){
+          display.clearDisplay();
+
+    display.setTextSize(1);      // Normal 1:1 pixel scale
+    display.setTextColor(SSD1306_WHITE); // Draw white text
+    display.setCursor(0, 0);     // Start at top-left corner
+    
+    display.printf("Wx %.2f\n", wx_calibrated - imu.w.x);
+    display.printf("Wy %.2f\n", imu.w.y);
+    display.printf("Wz %.2f\n", imu.w.z);
+
+    display.setCursor(64, 0);     // Start at top-left corner
+    display.printf("Ax %.2f", imu.a.x);
+    display.setCursor(64, 8);
+    display.printf("Ay %.2f", imu.a.y);
+    display.setCursor(64, 16);
+    display.printf("Az %.2f", imu.a.z);
+
+    display.display();
+    }
+    //Ação estado calibrating
+    if (fsm1.state == fsm_calibrating){ //vai somando os valores das amostras, e o numero de amostras
+      wx_total = wx_total + imu.w.x;
+      count_calibrate= count_calibrate + 1;
+      Serial.printf("Wx total %.2f; ", wx_total);
+      Serial.printf("Count_calibrate %d",count_calibrate);
+    }
+    //Ação estado Calibrated
+    if (fsm1.state == fsm_calibrated){
+      Serial.printf("Wx_calibrated: %.2f",wx_calibrated);
+    }
 
     // muda valor contador se tiver no menu
     if (fsm1.state == fsm_menu && SNEXTButton){
-      if (count == 2){
-        count = 0;
-      }
-      else
-      count = count + 1;
+      count_menu = (count_menu + 1) % 3;
     }
   }
 }
