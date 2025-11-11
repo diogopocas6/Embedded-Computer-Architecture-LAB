@@ -1,0 +1,117 @@
+#include <Arduino.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+#define SCREEN_ADDRESS 0x3C
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire1, OLED_RESET);
+
+// Draw a filled dot for dice pips
+void dot(int x, int y, int r) {
+  if (r < 1) r = 1;
+  display.fillCircle(x, y, r, SSD1306_WHITE);
+}
+
+// Draw n dice (1–4)
+void draw(uint8_t n) {
+  display.clearDisplay();
+
+  int diceSize = 20;          // size of each die
+  int spacing = diceSize + 4; // spacing between dice
+  int cols = min(n, 2);       // max 2 per row
+  int rows = (n + 1) / 2;     // enough rows for n dice
+
+  int startX = (SCREEN_WIDTH - cols * spacing + 4) / 2;
+  int startY = (SCREEN_HEIGHT - rows * spacing + 4) / 2;
+
+  for (int i = 0; i < n; i++) {
+    int col = i % 2;
+    int row = i / 2;
+    int x0 = startX + col * spacing;
+    int y0 = startY + row * spacing;
+
+    display.drawRect(x0, y0, diceSize, diceSize, SSD1306_WHITE);
+
+    int cx = x0 + diceSize / 2;
+    int cy = y0 + diceSize / 2;
+    int offset = diceSize / 4;
+    int dotRadius = diceSize / 10;
+    int value = random(1, 7);
+
+    Serial.print("Die "); Serial.print(i + 1);
+    Serial.print(": value="); Serial.println(value);
+
+    switch (value) {
+      case 1:
+        dot(cx, cy, dotRadius);
+        break;
+      case 2:
+        dot(x0 + offset, y0 + offset, dotRadius);
+        dot(x0 + diceSize - offset, y0 + diceSize - offset, dotRadius);
+        break;
+      case 3:
+        dot(cx, cy, dotRadius);
+        dot(x0 + offset, y0 + offset, dotRadius);
+        dot(x0 + diceSize - offset, y0 + diceSize - offset, dotRadius);
+        break;
+      case 4:
+        dot(x0 + offset, y0 + offset, dotRadius);
+        dot(x0 + diceSize - offset, y0 + offset, dotRadius);
+        dot(x0 + offset, y0 + diceSize - offset, dotRadius);
+        dot(x0 + diceSize - offset, y0 + diceSize - offset, dotRadius);
+        break;
+      case 5:
+        dot(cx, cy, dotRadius);
+        dot(x0 + offset, y0 + offset, dotRadius);
+        dot(x0 + diceSize - offset, y0 + offset, dotRadius);
+        dot(x0 + offset, y0 + diceSize - offset, dotRadius);
+        dot(x0 + diceSize - offset, y0 + diceSize - offset, dotRadius);
+        break;
+      case 6:
+        dot(x0 + offset, y0 + offset, dotRadius);
+        dot(x0 + diceSize - offset, y0 + offset, dotRadius);
+        dot(x0 + offset, cy, dotRadius);
+        dot(x0 + diceSize - offset, cy, dotRadius);
+        dot(x0 + offset, y0 + diceSize - offset, dotRadius);
+        dot(x0 + diceSize - offset, y0 + diceSize - offset, dotRadius);
+        break;
+    }
+  }
+
+  display.display();
+}
+
+void setup() {
+  Serial.begin(115200);
+  randomSeed(analogRead(0));
+
+  const int I2C1_SDA = 18;
+  const int I2C1_SCL = 19;
+  pinMode(I2C1_SDA, INPUT_PULLUP);
+  pinMode(I2C1_SCL, INPUT_PULLUP);
+
+  Wire1.setSDA(I2C1_SDA);
+  Wire1.setSCL(I2C1_SCL);
+  Wire1.begin();
+  Wire1.setClock(400000);
+
+  while (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+    Serial.println("SSD1306 allocation failed");
+    delay(500);
+  }
+
+  display.display();
+  delay(1000);
+  display.clearDisplay();
+}
+
+void loop() {
+  uint8_t diceCount = random(1, 5); // 1–4 dice
+  Serial.print("Drawing "); Serial.print(diceCount); Serial.println(" dice...");
+  draw(diceCount);
+  delay(1000);
+}
