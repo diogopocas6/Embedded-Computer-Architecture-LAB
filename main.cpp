@@ -46,6 +46,32 @@ uint32_t cycle_count;
 #define SNEXT_BUT 3
 #define SESC_BUT 4
 
+// --- BOTÕES COM RISING EDGE ---
+typedef struct {
+  bool value;       // leitura atual (já invertida: pressionado=1)
+  bool prev_value;  // leitura anterior
+  bool re;          // rising edge: 0 -> 1
+} button_t;
+
+button_t SOK, SESC, SNEXT;
+
+static inline void update_buttons(void) {
+  // SOK
+  SOK.prev_value = SOK.value;
+  SOK.value = !digitalRead(SOK_BUT);
+  SOK.re = (!SOK.prev_value && SOK.value);
+
+  // SESC
+  SESC.prev_value = SESC.value;
+  SESC.value = !digitalRead(SESC_BUT);
+  SESC.re = (!SESC.prev_value && SESC.value);
+
+  // SNEXT
+  SNEXT.prev_value = SNEXT.value;
+  SNEXT.value = !digitalRead(SNEXT_BUT);
+  SNEXT.re = (!SNEXT.prev_value && SNEXT.value);
+}
+
 typedef struct {
   int state, new_state;
 
@@ -90,6 +116,253 @@ void set_state(fsm_t &fsm, int new_state) {
     fsm.tes = millis();
   }
 }
+
+void dot(int x, int y, int r) {
+  if (r < 1) r = 1;
+  display.fillCircle(x, y, r, SSD1306_WHITE);
+}
+void draw(uint8_t n, uint8_t faces) {
+  display.clearDisplay();
+  int values=0;
+  int diceSize = 20;
+  int spacing = diceSize + 4;
+  int cols = min(n, 2);
+  int rows = (n + 1) / 2;
+
+  int startX = (SCREEN_WIDTH - cols * spacing + 4) / 2;
+  int startY = (SCREEN_HEIGHT - rows * spacing + 4) / 2;
+
+  for (int i = 0; i < n; i++) {
+    int col = i % 2;
+    int row = i / 2;
+    int x0 = startX + col * spacing;
+    int y0 = startY + row * spacing;
+
+    int cx = x0 + diceSize / 2;
+    int cy = y0 + diceSize / 2;
+    int offset = diceSize / 4;
+    int dotRadius = diceSize / 10;
+
+    int value = random(1, faces + 1);
+    Serial.print("Die "); Serial.print(i + 1);
+    Serial.print(": value="); Serial.println(value);
+
+    // --- CASE 1: D4 (triangular) ---
+    if (faces == 4) {
+      // Draw triangle (like a d4)
+      int half = diceSize / 2;
+      int topX = cx;
+      int topY = y0;
+      int leftX = x0;
+      int leftY = y0 + diceSize;
+      int rightX = x0 + diceSize;
+      int rightY = y0 + diceSize;
+
+      display.drawLine(leftX, leftY, topX, topY, SSD1306_WHITE);
+      display.drawLine(topX, topY, rightX, rightY, SSD1306_WHITE);
+      display.drawLine(rightX, rightY, leftX, leftY, SSD1306_WHITE);
+
+      // Display the rolled number inside
+      display.setTextSize(1);
+      display.setTextColor(SSD1306_WHITE);
+      display.setCursor(cx - 2, cy - 1);
+      display.print(value);
+      values=values+value;
+
+    }
+    // --- CASE 2: Standard 6-sided or higher ---
+    else {
+      // Draw square die
+      display.drawRect(x0, y0, diceSize, diceSize, SSD1306_WHITE);
+
+      if (faces > 6) 
+      {
+        // Display number if above 6
+        display.setTextSize(1);
+        display.setTextColor(SSD1306_WHITE);
+
+        // Measure approximate text width (each character ≈ 6 pixels wide at size 1)
+        int textWidth = String(value).length() * 6;
+        int textHeight = 8; // standard font height
+
+        // Compute centered cursor position
+        int textX = cx - textWidth / 2;
+        int textY = cy - textHeight / 2;
+
+        display.setCursor(textX, textY);
+        display.print(value);
+        values=values+value;
+
+      }
+      else {
+        // Draw dots (standard die)
+        switch (value) {
+          case 1:
+            dot(cx, cy, dotRadius);
+            values=values+value;
+            break;
+          case 2:
+            dot(x0 + offset, y0 + offset, dotRadius);
+            dot(x0 + diceSize - offset, y0 + diceSize - offset, dotRadius);
+            values=values+value;
+            break;
+          case 3:
+            dot(cx, cy, dotRadius);
+            dot(x0 + offset, y0 + offset, dotRadius);
+            dot(x0 + diceSize - offset, y0 + diceSize - offset, dotRadius);
+            values=values+value;
+            break;
+          case 4:
+            dot(x0 + offset, y0 + offset, dotRadius);
+            dot(x0 + diceSize - offset, y0 + offset, dotRadius);
+            dot(x0 + offset, y0 + diceSize - offset, dotRadius);
+            dot(x0 + diceSize - offset, y0 + diceSize - offset, dotRadius);
+            values=values+value;
+            break;
+          case 5:
+            dot(cx, cy, dotRadius);
+            dot(x0 + offset, y0 + offset, dotRadius);
+            dot(x0 + diceSize - offset, y0 + offset, dotRadius);
+            dot(x0 + offset, y0 + diceSize - offset, dotRadius);
+            dot(x0 + diceSize - offset, y0 + diceSize - offset, dotRadius);
+            values=values+value;
+            break;
+          case 6:
+            dot(x0 + offset, y0 + offset, dotRadius);
+            dot(x0 + diceSize - offset, y0 + offset, dotRadius);
+            dot(x0 + offset, cy, dotRadius);
+            dot(x0 + diceSize - offset, cy, dotRadius);
+            dot(x0 + offset, y0 + diceSize - offset, dotRadius);
+            dot(x0 + diceSize - offset, y0 + diceSize - offset, dotRadius);
+            values=values+value;
+            break;
+        }
+      }
+    }
+  }
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0,55);
+  display.printf("Sum of the values:");
+  display.println(values);
+  display.display();
+}
+
+void drawex(uint8_t n, uint8_t faces) {
+  display.clearDisplay();
+  int values=0;
+  int diceSize = 20;
+  int spacing = diceSize + 4;
+  int cols = min(n, 2);
+  int rows = (n + 1) / 2;
+
+  int startX = (SCREEN_WIDTH - cols * spacing + 4) / 2;
+  int startY = (SCREEN_HEIGHT - rows * spacing + 4) / 2;
+
+  for (int i = 0; i < n; i++) {
+    int col = i % 2;
+    int row = i / 2;
+    int x0 = startX + col * spacing;
+    int y0 = startY + row * spacing;
+
+    int cx = x0 + diceSize / 2;
+    int cy = y0 + diceSize / 2;
+    int offset = diceSize / 4;
+    int dotRadius = diceSize / 10;
+
+    int value = faces;
+    Serial.print("Die "); Serial.print(i + 1);
+    Serial.print(": value="); Serial.println(value);
+
+    // --- CASE 1: D4 (triangular) ---
+    if (faces == 4) {
+      // Draw triangle (like a d4)
+      int half = diceSize / 2;
+      int topX = cx;
+      int topY = y0;
+      int leftX = x0;
+      int leftY = y0 + diceSize;
+      int rightX = x0 + diceSize;
+      int rightY = y0 + diceSize;
+
+      display.drawLine(leftX, leftY, topX, topY, SSD1306_WHITE);
+      display.drawLine(topX, topY, rightX, rightY, SSD1306_WHITE);
+      display.drawLine(rightX, rightY, leftX, leftY, SSD1306_WHITE);
+
+      // Display the rolled number inside
+      display.setTextSize(1);
+      display.setTextColor(SSD1306_WHITE);
+      display.setCursor(cx - 2, cy - 1);
+      display.print(value);
+      values=values+value;
+
+    }
+    // --- CASE 2: Standard 6-sided or higher ---
+    else {
+      // Draw square die
+      display.drawRect(x0, y0, diceSize, diceSize, SSD1306_WHITE);
+
+      if (faces >= 6) 
+      {
+        // Display number if above 6
+        display.setTextSize(1);
+        display.setTextColor(SSD1306_WHITE);
+
+        // Measure approximate text width (each character ≈ 6 pixels wide at size 1)
+        int textWidth = String(value).length() * 6;
+        int textHeight = 8; // standard font height
+
+        // Compute centered cursor position
+        int textX = cx - textWidth / 2;
+        int textY = cy - textHeight / 2;
+
+        display.setCursor(textX, textY);
+        display.print(value);
+        values=values+value;
+
+      }
+    }
+  }
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0,0);
+  display.printf("Dices:%d,  d%d",n ,faces);
+ /* display.setCursor(0,64);
+  display.printf("Possible numbers : D%d \n",faces);*/
+  display.display();
+}
+
+typedef struct 
+{
+  Vec3f w;
+  Vec3f a;
+  uint32_t cycle_time, last_cycle_time; // IMU cycle tracking
+} imu_values_t;
+imu_values_t imu;
+
+
+enum {
+  fsm_start = 0,
+  fsm_detect = 1,
+  fsm_roll = 2,
+};
+
+typedef struct {
+  int state;
+  unsigned long tes;  // Time entering state
+  int movement_count; // Count consecutive movement cycles
+} fsm_d;
+
+fsm_d fsmd;
+
+void set_state(fsm_d &fsm, int new_state) {
+  if (fsm.state != new_state) {
+    fsm.state = new_state;
+    fsm.tes = millis();
+    fsm.movement_count = 0; // reset counter on state change
+  }
+}
+
 
 void setup() 
 {
@@ -156,13 +429,7 @@ void setup()
 }
 
 // Struct to store IMU readings
-typedef struct {
-  Vec3f w;
-  Vec3f a;
-  uint32_t cycle_time, last_cycle_time; // IMU cycle tracking
-} imu_values_t;
 
-imu_values_t imu;
 
 void loop() 
 {
@@ -198,265 +465,270 @@ void loop()
 
     fsm1.tis = millis() - fsm1.tes;
     // Read the buttons
-    // ...
-    SOKButton = !digitalRead(SOK_BUT);
-    SESCButton = !digitalRead(SESC_BUT);
-    SNEXTButton = !digitalRead(SNEXT_BUT);
-    
-    //Debugging
-    
-    /*
-    if (SOKButton){
-      Serial.printf("Butão Apertado");
-    } 
-    */
-    
-    if (fsm1.state == fsm_menu){Serial.printf("State = Menu\n");}
-    if (fsm1.state == fsm_Not_pressed){Serial.printf("State = Not pressed\n");}
-    if (fsm1.state == fsm_pressing){Serial.printf("State = Pressing\n");}
-    if (fsm1.state == fsm_calibrating){Serial.printf("State = Calibrating\n");}
-    if (fsm1.state == fsm_calibrated){Serial.printf("State = Calibrated\n");}
-    if (fsm1.state == fsm_show_values){Serial.printf("State = Show values\n");}
-    if (fsm1.state == fsm_notCalibrated){Serial.printf("State = Not Calibrated!\n");}
-    if (fsm1.state == fsm_play){Serial.printf("State = Playing\n");}
-    // Place here the state machines
-    // Transições Not Pressed
-  if (fsm1.state == fsm_Not_pressed && SOKButton) {
-    set_state(fsm1, fsm_pressing);
-  }
+        // Read the buttons
+    update_buttons();
 
-    // Transições Pressing
-  if (fsm1.state == fsm_pressing && fsm1.tis >= 2000 && SOKButton) {  // PRESSING -> MENU
-    set_state(fsm1, fsm_menu);
-    count_menu = 0;
-  }
+    // Mantém estas flags para o hold de 2s já implementado
+    SOKButton   = SOK.value;
+    SESCButton  = SESC.value;
+    SNEXTButton = SNEXT.value;
 
-  if (fsm1.state == fsm_pressing && !SOKButton){  //PRESSING -> NOT PRESSED
-    set_state(fsm1,fsm_Not_pressed);
-  }
-
-
-  // Transições Menu
-  
-  /*if (fsm1.state == fsm_menu && SESCButton) { //Menu -> NOT PRESSED
-    set_state(fsm1, fsm_Not_pressed);
-  }
-  */
-  if (fsm1.state == fsm_menu && count_menu == 1 && SOKButton){  //Menu -> Calibrating 
-    wx_calibrated = 0;    //resetamos os valores calibrados
-    wy_calibrated = 0;
-    wz_calibrated = 0;
-    ax_calibrated = 0;
-    ay_calibrated = 0;
-    az_calibrated = 0;
-
-    set_state(fsm1,fsm_calibrating);
-  }
-  if (fsm1.state == fsm_menu && count_menu == 2 && SOKButton){  //Menu -> Show values
-    set_state(fsm1,fsm_show_values);
-    count_menu = 0;
-  }
-
-  if(fsm1.state == fsm_menu && count_menu == 3 && is_Calibrated && SOKButton){ //Menu -> Play
-    set_state(fsm1,fsm_play);
-    count_menu = 0;
-    //Display diz "roll the dice"
-  }
-  if (fsm1.state == fsm_menu && count_menu == 3 && !is_Calibrated && SOKButton){ //Menu -> Not calibrated
-    set_state(fsm1,fsm_notCalibrated);
-    count_menu = 0;
-    //Display diz "You need to calibrate before rolling the dice"
-  }
-  if(fsm1.state == fsm_menu && count_menu == 4 && SOKButton){ //Menu -> Play
-    set_state(fsm1,fsm_parameters);
-  }
-
-  //Transições notCalibrated
-  if (fsm1.state == fsm_notCalibrated && fsm1.tis >= 4000){
-    set_state(fsm1,fsm_menu);
-  }
-
-  //Transições Playing
-  if (fsm1.state == fsm_play && SESCButton){
-    set_state(fsm1,fsm_menu);
-  }
-
-  //Transições Calibrating
-  if (fsm1.state == fsm_calibrating && fsm1.tis >= 2000){
-    set_state(fsm1,fsm_calibrated);
-    wx_calibrated = wx_total / count_calibrate;
-    wy_calibrated = wy_total / count_calibrate;
-    wz_calibrated = wz_total / count_calibrate;
-    ax_calibrated = ax_total / count_calibrate;
-    ay_calibrated = ay_total / count_calibrate;
-    az_calibrated = (az_total / count_calibrate) - 1;
-  } 
-
-  //Transições Calibrated
-  if (fsm1.state == fsm_calibrated && fsm1.tis >=3000){
-    wx_total = 0;
-    wy_total = 0;
-    wz_total = 0;
-    ax_total = 0;
-    ay_total = 0;
-    az_total = 0;
-    count_calibrate = 0;    //reset de todos os valores para próximo calculo
-    is_Calibrated = true;
-    set_state(fsm1,fsm_menu);
-  }
-
-  //Transições Show Values
-  if (fsm1.state == fsm_show_values && SESCButton){
-    set_state(fsm1, fsm_menu);
-  }
-
-  //Transições Parameters
-  if (fsm1.state == fsm_parameters && SESCButton){
-    set_state(fsm1, fsm_menu);
-  }
-
-  //OUTPUTS
-
-  //OUTPUT MENU
-  if (fsm1.state == fsm_menu){
-    //AQUI ESCREVER O DISPLAY DO MENU !!!
-    //
-    //
-    display.clearDisplay();
-    display.setCursor(64,0);
-    display.printf("Menu");
-    display.setCursor(0,16);
-    display.printf("Calibrate");
-    display.setCursor(0,32);
-    display.printf("Show accelerometer values");
-    display.printf("Count = %d\n", count_menu);
-    display.display();
-  }
-  //OUTPUT NOT_PRESSED OU PRESSING
-  if(fsm1.state == fsm_Not_pressed || fsm1.state == fsm_pressing){
-    // OLED output
-    display.clearDisplay();
-
-    display.setTextSize(1);      // Normal 1:1 pixel scale
-    display.setTextColor(SSD1306_WHITE); // Draw white text
-    display.setCursor(0, 0);     // Start at top-left corner
-    
-    display.printf("Wx %.2f\n", imu.w.x);
-    display.printf("Wy %.2f\n", imu.w.y);
-    display.printf("Wz %.2f\n", imu.w.z);
-
-    display.setCursor(64, 0);     // Start at top-left corner
-    display.printf("Ax %.2f", imu.a.x);
-    display.setCursor(64, 8);
-    display.printf("Ay %.2f", imu.a.y);
-    display.setCursor(64, 16);
-    display.printf("Az %.2f", imu.a.z);
-    display.setCursor(0, 24);
-    display.display();
-
-    // Serial output
-    Serial.printf("IMU_dt %d; ", imu.cycle_time - imu.last_cycle_time);
-
-    Serial.printf("Wx %.2f; ", imu.w.x);
-    Serial.printf("Wy %.2f; ", imu.w.y);
-    Serial.printf("Wz %.2f; ", imu.w.z);
-
-    Serial.printf("Ax %.2f; ", imu.a.x);
-    Serial.printf("Ay %.2f; ", imu.a.y);
-    Serial.printf("Az %.2f; ", imu.a.z);
-
-    //Serial.print("T ");
-    //Serial.print(mpu.getTemperature(), 2);
-
-    Serial.print("loop ");
-    Serial.print(micros() - now);
-
-    Serial.println();
+    // ---------------- DEBUG ----------------
+    if (SOKButton) {
+      Serial.printf("Botão OK apertado\n");
     }
 
-    if (fsm1.state == fsm_show_values){
-          display.clearDisplay();
+    if (fsm1.state == fsm_menu) Serial.printf("State = Menu\n");
+    if (fsm1.state == fsm_Not_pressed) Serial.printf("State = Not pressed\n");
+    if (fsm1.state == fsm_pressing) Serial.printf("State = Pressing\n");
+    if (fsm1.state == fsm_calibrating) Serial.printf("State = Calibrating\n");
+    if (fsm1.state == fsm_calibrated) Serial.printf("State = Calibrated\n");
+    if (fsm1.state == fsm_show_values) Serial.printf("State = Show values\n");
+    if (fsm1.state == fsm_notCalibrated) Serial.printf("State = Not Calibrated!\n");
+    if (fsm1.state == fsm_play) Serial.printf("State = Playing\n");
 
-    display.setTextSize(1);      // Normal 1:1 pixel scale
-    display.setTextColor(SSD1306_WHITE); // Draw white text
-    display.setCursor(0, 0);     // Start at top-left corner
-    
-    display.printf("Wx %.2f\n", imu.w.x - wx_calibrated);
-    display.printf("Wy %.2f\n", imu.w.y - wy_calibrated);
-    display.printf("Wz %.2f\n", imu.w.z - wz_calibrated);
+    // ------------------ TRANSIÇÕES ------------------
 
-    display.setCursor(64, 0);     // Start at top-left corner
-    display.printf("Ax %.2f", imu.a.x - ax_calibrated);
-    display.setCursor(64, 8);
-    display.printf("Ay %.2f", imu.a.y - ay_calibrated);
-    display.setCursor(64, 16);
-    display.printf("Az %.2f", imu.a.z + az_calibrated);
-
-    display.display();
-    }
-    //Ação estado calibrating
-    if (fsm1.state == fsm_calibrating){ //vai somando os valores das amostras, e o numero de amostras
-      wx_total = wx_total + imu.w.x;
-      wy_total = wy_total + imu.w.y;
-      wz_total = wz_total + imu.w.z;
-      ax_total = ax_total + imu.a.x;
-      ay_total = ay_total + imu.a.y;
-      az_total = az_total + imu.a.z;
-      count_calibrate= count_calibrate + 1;
-      Serial.printf("Wx total %.2f; ", wx_total);
-      Serial.printf("Wy total %.2f; ", wy_total);
-      Serial.printf("Ax total %.2f; ", ax_total);
-      Serial.printf("Az total %.2f; ", az_total);
-      Serial.printf("Count_calibrate %d",count_calibrate);
-    }
-    //Ação estado Calibrated
-    if (fsm1.state == fsm_calibrated){
-      Serial.printf("Wx_calibrated: %.2f",wx_calibrated);
-      Serial.printf("Wy_calibrated: %.2f",wy_calibrated);
-      Serial.printf("Wz_calibrated: %.2f",wz_calibrated);
-      Serial.printf("Ax_calibrated: %.2f",ax_calibrated);
-      Serial.printf("Ay_calibrated: %.2f",ay_calibrated);
-      Serial.printf("Az_calibrated: %.2f",az_calibrated);
+    // Not Pressed -> Pressing (pressionar OK)
+    if (fsm1.state == fsm_Not_pressed && SOKButton) {
+      set_state(fsm1, fsm_pressing);
     }
 
-    //Ação Parameters
-    if (fsm1.state == fsm_parameters && SOKButton){
+    // Pressing -> Menu (OK pressionado por 2s)
+    if (fsm1.state == fsm_pressing && fsm1.tis >= 2000 && SOKButton) {
+      set_state(fsm1, fsm_menu);
+      count_menu = 0;
+    }
+
+    // Pressing -> Not Pressed (soltar OK)
+    if (fsm1.state == fsm_pressing && !SOKButton) {
+      set_state(fsm1, fsm_Not_pressed);
+    }
+
+    // -------- MENU COM RISING EDGES --------
+
+    // Menu -> Not Pressed (ESC rising edge)
+    if (fsm1.state == fsm_menu && SESC.re) {
+      set_state(fsm1, fsm_Not_pressed);
+    }
+
+    // Menu -> Calibrating (count_menu==1, OK rising edge)
+    if (fsm1.state == fsm_menu && count_menu == 1 && SOK.re) {
+      wx_calibrated = wy_calibrated = wz_calibrated = 0;
+      ax_calibrated = ay_calibrated = az_calibrated = 0;
+      set_state(fsm1, fsm_calibrating);
+    }
+
+    // Menu -> Show Values (count_menu==2, OK rising edge)
+    if (fsm1.state == fsm_menu && count_menu == 2 && SOK.re) {
+      set_state(fsm1, fsm_show_values);
+      count_menu = 0;
+    }
+
+    // Menu -> Not Calibrated (count_menu==3, OK rising edge, !is_Calibrated)
+    if (fsm1.state == fsm_menu && count_menu == 3 && SOK.re && !is_Calibrated) {
+      set_state(fsm1, fsm_notCalibrated);
+      count_menu = 0;
+    }
+
+    // Menu -> Parameters (count_menu==4, OK rising edge)
+    if (fsm1.state == fsm_menu && count_menu == 4 && SOK.re) {
+      set_state(fsm1, fsm_parameters);
+    }
+
+    // Menu -> Playing (count_menu==3, OK rising edge, is_Calibrated)
+    if (fsm1.state == fsm_menu && count_menu == 3 && SOK.re && is_Calibrated) {
+      set_state(fsm1, fsm_play);
+      count_menu = 0;
+    }
+
+    // Avançar opção no menu (NEXT rising edge)
+    if (fsm1.state == fsm_menu && SNEXT.re) {
+      count_menu = (count_menu + 1) % 5;
+    }
+
+    // -------- OUTROS ESTADOS COM RISING EDGES --------
+
+    // Show Values -> Menu (ESC rising edge)
+    if (fsm1.state == fsm_show_values && SESC.re) {
+      set_state(fsm1, fsm_menu);
+    }
+
+    // Not Calibrated -> Menu (timeout de 4s)
+    if (fsm1.state == fsm_notCalibrated && fsm1.tis >= 4000) {
+      set_state(fsm1, fsm_menu);
+    }
+
+    // Calibrating -> Calibrated (mantém a tua lógica)
+    if (fsm1.state == fsm_calibrating && fsm1.tis >= 2000) {
+      set_state(fsm1, fsm_calibrated);
+      wx_calibrated = wx_total / count_calibrate;
+      wy_calibrated = wy_total / count_calibrate;
+      wz_calibrated = wz_total / count_calibrate;
+      ax_calibrated = ax_total / count_calibrate;
+      ay_calibrated = ay_total / count_calibrate;
+      az_calibrated = (az_total / count_calibrate) - 1;
+    }
+
+    // Calibrated -> Menu (mantém a tua lógica)
+    if (fsm1.state == fsm_calibrated && fsm1.tis >= 3000) {
+      wx_total = wy_total = wz_total = 0;
+      ax_total = ay_total = az_total = 0;
+      count_calibrate = 0;
+      is_Calibrated = true;
+      set_state(fsm1, fsm_menu);
+    }
+
+    // Playing -> Menu (ESC rising edge)
+    if (fsm1.state == fsm_play && SESC.re) {
+      set_state(fsm1, fsm_menu);
+    }
+
+    // Parameters -> Menu (ESC rising edge)
+    if (fsm1.state == fsm_parameters && SESC.re) {
+      set_state(fsm1, fsm_menu);
+    }
+
+    // Parameters: incrementa "possible numbers of dices" (OK rising edge)
+    if (fsm1.state == fsm_parameters && SOK.re) {
       param_dice_numbers = (param_dice_numbers + 1) % 4;
-      switch(param_dice_numbers)
-      {
-        case(0):
-        dice_numbers = 4;
-        break;
-        
-        case(1):
-        dice_numbers = 6;
-        break;
-        
-        case(2):
-        dice_numbers = 10;
-        break;
-
-        case(3):
-        dice_numbers = 20;
-        break;
+      switch (param_dice_numbers) {
+        case 0: dice_numbers = 4;  break;
+        case 1: dice_numbers = 6;  break;
+        case 2: dice_numbers = 10; break;
+        case 3: dice_numbers = 20; break;
       }
     }
 
-    if (fsm1.state == fsm_parameters && SNEXTButton){
-      number_of_dices = ((number_of_dices)% 4) + 1;
-    }
-    if (fsm1.state == fsm_notCalibrated){
-    // escrever Not calibrated
+    // Parameters: incrementa "number_of_dices" (NEXT rising edge)
+    if (fsm1.state == fsm_parameters && SNEXT.re) {
+      number_of_dices = (number_of_dices % 4) + 1;
     }
 
-    if (fsm1.state == fsm_parameters){
-      Serial.printf("Number of dices :%d \n",number_of_dices);
-      Serial.printf("Possible numbers : D%d \n",dice_numbers);
-      //FAZER DISPLAY INTERFACE
+    // ---------------- FIM DAS TRANSIÇÕES ----------------
+
+
+    // ----------------------- OUTPUTS -----------------------
+
+    // OUTPUT PLAY
+    if(fsm1.state==fsm_play)
+    {
+      drawex(number_of_dices,dice_numbers);
+      float ax = imu.a.x;
+      float ay = imu.a.y;
+      bool moving = (fabs(ax) > 1 || fabs(ay) > 1);
+
+      switch (fsmd.state) {
+
+        case fsm_start:
+          if (moving) {
+            Serial.println("Movement detected -> fsm_detect");
+            set_state(fsmd, fsm_detect);
+          }
+          break;
+
+        case fsm_detect:
+          if (moving) {
+            fsmd.movement_count++;
+            Serial.printf("Movement cycle %d\n", fsmd.movement_count);
+            if (fsmd.movement_count >= 3) {
+              Serial.println("3 cycles of movement -> fsm_roll");
+              set_state(fsmd, fsm_roll);
+            }
+          } else {
+            Serial.println("Movement stopped -> fsm_start");
+            set_state(fsmd, fsm_start);
+          }
+          break;
+
+        case fsm_roll:
+          {
+            uint8_t diceCount = random(1, 5);
+            Serial.printf("Rolling %d dice...\n", diceCount);
+            draw(number_of_dices,dice_numbers);
+            delay(1000);
+            Serial.println("Returning to start state");
+            set_state(fsmd, fsm_start);
+          }
+          break;
+      }
     }
-    // muda valor contador se tiver no menu
-    if (fsm1.state == fsm_menu && SNEXTButton){
-      count_menu = (count_menu + 1) % 5;
+
+    // OUTPUT MENU
+    if (fsm1.state == fsm_menu){
+      display.clearDisplay();
+      display.setCursor(64,0);
+      display.printf("Menu");
+      display.setCursor(0,16);
+      display.printf("Calibrate");
+      display.setCursor(0,32);
+      display.printf("Show accelerometer values");
+      display.printf("Count = %d\n", count_menu);
+      display.display();
+    }
+
+    // OUTPUT NOT_PRESSED ou PRESSING
+    if(fsm1.state == fsm_Not_pressed || fsm1.state == fsm_pressing){
+      display.clearDisplay();
+      display.setTextSize(1);
+      display.setTextColor(SSD1306_WHITE);
+      display.setCursor(0, 0);
+      display.printf("Wx %.2f\n", imu.w.x);
+      display.printf("Wy %.2f\n", imu.w.y);
+      display.printf("Wz %.2f\n", imu.w.z);
+      display.setCursor(64, 0);
+      display.printf("Ax %.2f", imu.a.x);
+      display.setCursor(64, 8);
+      display.printf("Ay %.2f", imu.a.y);
+      display.setCursor(64, 16);
+      display.printf("Az %.2f", imu.a.z);
+      display.display();
+    }
+
+    // OUTPUT SHOW VALUES
+    if (fsm1.state == fsm_show_values){
+      display.clearDisplay();
+      display.setTextSize(1);
+      display.setTextColor(SSD1306_WHITE);
+      display.setCursor(0, 0);
+      display.printf("Wx %.2f\n", imu.w.x - wx_calibrated);
+      display.printf("Wy %.2f\n", imu.w.y - wy_calibrated);
+      display.printf("Wz %.2f\n", imu.w.z - wz_calibrated);
+      display.setCursor(64, 0);
+      display.printf("Ax %.2f", imu.a.x - ax_calibrated);
+      display.setCursor(64, 8);
+      display.printf("Ay %.2f", imu.a.y - ay_calibrated);
+      display.setCursor(64, 16);
+      display.printf("Az %.2f", imu.a.z + az_calibrated);
+      display.display();
+    }
+
+    // OUTPUT CALIBRATING
+    if (fsm1.state == fsm_calibrating){
+      wx_total += imu.w.x;
+      wy_total += imu.w.y;
+      wz_total += imu.w.z;
+      ax_total += imu.a.x;
+      ay_total += imu.a.y;
+      az_total += imu.a.z;
+      count_calibrate++;
+      Serial.printf("Wx total %.2f; Wy total %.2f; Ax total %.2f; Az total %.2f; Count %d\n",
+                    wx_total, wy_total, ax_total, az_total, count_calibrate);
+    }
+
+    // OUTPUT CALIBRATED
+    if (fsm1.state == fsm_calibrated){
+      Serial.printf("Wx_calibrated: %.2f Wy_calibrated: %.2f Wz_calibrated: %.2f\n",
+                    wx_calibrated, wy_calibrated, wz_calibrated);
+      Serial.printf("Ax_calibrated: %.2f Ay_calibrated: %.2f Az_calibrated: %.2f\n",
+                    ax_calibrated, ay_calibrated, az_calibrated);
+    }
+
+    // OUTPUT PARAMETERS
+    if (fsm1.state == fsm_parameters){
+      Serial.printf("Number of dices : %d\n", number_of_dices);
+      Serial.printf("Possible numbers : D%d\n", dice_numbers);
+      drawex(number_of_dices, dice_numbers);
     }
   }
 }
