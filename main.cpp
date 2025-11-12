@@ -60,16 +60,23 @@ enum {
   fsm_menu = 2,
   fsm_calibrating = 3,
   fsm_calibrated = 4,
-  fsm_show_values = 5
+  fsm_show_values = 5,
+  fsm_notCalibrated = 6,
+  fsm_play = 7,
+  fsm_parameters = 8
 };
 
 fsm_t fsm1;
 bool SOKButton, SESCButton, SNEXTButton;
-int count_menu=0;
-int count_calibrate=0;
+int count_menu = 0;
+int count_calibrate = 0;
+bool is_Calibrated = 0;
+int dice_numbers;
+int param_dice_numbers;
+int number_of_dices = 1;
 
 float wx_calibrated, wy_calibrated, wz_calibrated, ax_calibrated, ay_calibrated, az_calibrated;
-float wx_total, wy_calibrated, wz_calibrated, ax_calibrated, ay_calibrated, az_calibrated;
+float wx_total, wy_total, wz_total, ax_total, ay_total, az_total;
 
 void set_interval(float new_interval)
 {
@@ -210,7 +217,8 @@ void loop()
     if (fsm1.state == fsm_calibrating){Serial.printf("State = Calibrating\n");}
     if (fsm1.state == fsm_calibrated){Serial.printf("State = Calibrated\n");}
     if (fsm1.state == fsm_show_values){Serial.printf("State = Show values\n");}
-    
+    if (fsm1.state == fsm_notCalibrated){Serial.printf("State = Not Calibrated!\n");}
+    if (fsm1.state == fsm_play){Serial.printf("State = Playing\n");}
     // Place here the state machines
     // Transições Not Pressed
   if (fsm1.state == fsm_Not_pressed && SOKButton) {
@@ -229,31 +237,82 @@ void loop()
 
 
   // Transições Menu
-  if (fsm1.state == fsm_menu && SESCButton) { //Menu -> NOT PRESSED
+  
+  /*if (fsm1.state == fsm_menu && SESCButton) { //Menu -> NOT PRESSED
     set_state(fsm1, fsm_Not_pressed);
   }
+  */
   if (fsm1.state == fsm_menu && count_menu == 1 && SOKButton){  //Menu -> Calibrating 
     wx_calibrated = 0;    //resetamos os valores calibrados
+    wy_calibrated = 0;
+    wz_calibrated = 0;
+    ax_calibrated = 0;
+    ay_calibrated = 0;
+    az_calibrated = 0;
+
     set_state(fsm1,fsm_calibrating);
-    //count_calibrate=0;
   }
   if (fsm1.state == fsm_menu && count_menu == 2 && SOKButton){  //Menu -> Show values
     set_state(fsm1,fsm_show_values);
+    count_menu = 0;
+  }
+
+  if(fsm1.state == fsm_menu && count_menu == 3 && is_Calibrated && SOKButton){ //Menu -> Play
+    set_state(fsm1,fsm_play);
+    count_menu = 0;
+    //Display diz "roll the dice"
+  }
+  if (fsm1.state == fsm_menu && count_menu == 3 && !is_Calibrated && SOKButton){ //Menu -> Not calibrated
+    set_state(fsm1,fsm_notCalibrated);
+    count_menu = 0;
+    //Display diz "You need to calibrate before rolling the dice"
+  }
+  if(fsm1.state == fsm_menu && count_menu == 4 && SOKButton){ //Menu -> Play
+    set_state(fsm1,fsm_parameters);
+  }
+
+  //Transições notCalibrated
+  if (fsm1.state == fsm_notCalibrated && fsm1.tis >= 4000){
+    set_state(fsm1,fsm_menu);
+  }
+
+  //Transições Playing
+  if (fsm1.state == fsm_play && SESCButton){
+    set_state(fsm1,fsm_menu);
   }
 
   //Transições Calibrating
   if (fsm1.state == fsm_calibrating && fsm1.tis >= 2000){
     set_state(fsm1,fsm_calibrated);
     wx_calibrated = wx_total / count_calibrate;
+    wy_calibrated = wy_total / count_calibrate;
+    wz_calibrated = wz_total / count_calibrate;
+    ax_calibrated = ax_total / count_calibrate;
+    ay_calibrated = ay_total / count_calibrate;
+    az_calibrated = (az_total / count_calibrate) - 1;
   } 
+
   //Transições Calibrated
   if (fsm1.state == fsm_calibrated && fsm1.tis >=3000){
+    wx_total = 0;
+    wy_total = 0;
+    wz_total = 0;
+    ax_total = 0;
+    ay_total = 0;
+    az_total = 0;
+    count_calibrate = 0;    //reset de todos os valores para próximo calculo
+    is_Calibrated = true;
     set_state(fsm1,fsm_menu);
-    count_calibrate = 0;
   }
+
   //Transições Show Values
   if (fsm1.state == fsm_show_values && SESCButton){
-    set_state(fsm1, fsm_Not_pressed);
+    set_state(fsm1, fsm_menu);
+  }
+
+  //Transições Parameters
+  if (fsm1.state == fsm_parameters && SESCButton){
+    set_state(fsm1, fsm_menu);
   }
 
   //OUTPUTS
@@ -292,7 +351,7 @@ void loop()
     display.printf("Ay %.2f", imu.a.y);
     display.setCursor(64, 16);
     display.printf("Az %.2f", imu.a.z);
-
+    display.setCursor(0, 24);
     display.display();
 
     // Serial output
@@ -322,34 +381,82 @@ void loop()
     display.setTextColor(SSD1306_WHITE); // Draw white text
     display.setCursor(0, 0);     // Start at top-left corner
     
-    display.printf("Wx %.2f\n", wx_calibrated - imu.w.x);
-    display.printf("Wy %.2f\n", imu.w.y);
-    display.printf("Wz %.2f\n", imu.w.z);
+    display.printf("Wx %.2f\n", imu.w.x - wx_calibrated);
+    display.printf("Wy %.2f\n", imu.w.y - wy_calibrated);
+    display.printf("Wz %.2f\n", imu.w.z - wz_calibrated);
 
     display.setCursor(64, 0);     // Start at top-left corner
-    display.printf("Ax %.2f", imu.a.x);
+    display.printf("Ax %.2f", imu.a.x - ax_calibrated);
     display.setCursor(64, 8);
-    display.printf("Ay %.2f", imu.a.y);
+    display.printf("Ay %.2f", imu.a.y - ay_calibrated);
     display.setCursor(64, 16);
-    display.printf("Az %.2f", imu.a.z);
+    display.printf("Az %.2f", imu.a.z + az_calibrated);
 
     display.display();
     }
     //Ação estado calibrating
     if (fsm1.state == fsm_calibrating){ //vai somando os valores das amostras, e o numero de amostras
       wx_total = wx_total + imu.w.x;
+      wy_total = wy_total + imu.w.y;
+      wz_total = wz_total + imu.w.z;
+      ax_total = ax_total + imu.a.x;
+      ay_total = ay_total + imu.a.y;
+      az_total = az_total + imu.a.z;
       count_calibrate= count_calibrate + 1;
       Serial.printf("Wx total %.2f; ", wx_total);
+      Serial.printf("Wy total %.2f; ", wy_total);
+      Serial.printf("Ax total %.2f; ", ax_total);
+      Serial.printf("Az total %.2f; ", az_total);
       Serial.printf("Count_calibrate %d",count_calibrate);
     }
     //Ação estado Calibrated
     if (fsm1.state == fsm_calibrated){
       Serial.printf("Wx_calibrated: %.2f",wx_calibrated);
+      Serial.printf("Wy_calibrated: %.2f",wy_calibrated);
+      Serial.printf("Wz_calibrated: %.2f",wz_calibrated);
+      Serial.printf("Ax_calibrated: %.2f",ax_calibrated);
+      Serial.printf("Ay_calibrated: %.2f",ay_calibrated);
+      Serial.printf("Az_calibrated: %.2f",az_calibrated);
     }
 
+    //Ação Parameters
+    if (fsm1.state == fsm_parameters && SOKButton){
+      param_dice_numbers = (param_dice_numbers + 1) % 4;
+      switch(param_dice_numbers)
+      {
+        case(0):
+        dice_numbers = 4;
+        break;
+        
+        case(1):
+        dice_numbers = 6;
+        break;
+        
+        case(2):
+        dice_numbers = 10;
+        break;
+
+        case(3):
+        dice_numbers = 20;
+        break;
+      }
+    }
+
+    if (fsm1.state == fsm_parameters && SNEXTButton){
+      number_of_dices = ((number_of_dices)% 4) + 1;
+    }
+    if (fsm1.state == fsm_notCalibrated){
+    // escrever Not calibrated
+    }
+
+    if (fsm1.state == fsm_parameters){
+      Serial.printf("Number of dices :%d \n",number_of_dices);
+      Serial.printf("Possible numbers : D%d \n",dice_numbers);
+      //FAZER DISPLAY INTERFACE
+    }
     // muda valor contador se tiver no menu
     if (fsm1.state == fsm_menu && SNEXTButton){
-      count_menu = (count_menu + 1) % 3;
+      count_menu = (count_menu + 1) % 5;
     }
   }
 }
