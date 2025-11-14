@@ -360,8 +360,28 @@ void set_state(fsm_d &fsm, int new_state) {
 }
 
 void print_display(fsm_t& fsm, int countmenu){
-    //MENU DISPLAY  
-    
+  //BEGIN DISPLAY
+  if (fsm.state == fsm_begin) {
+    display.clearDisplay();
+    display.setTextColor(SSD1306_WHITE);
+
+    display.setTextSize(2);
+    display.setCursor(8, 10);
+    display.println("DiceQuake!");
+
+    display.setTextSize(1);
+    display.setCursor(2, 32);
+    display.println("Welcome to DiceQuake!");
+
+    display.setCursor(0, 44);
+    display.println("Press SOK for 2s to ");
+    display.setCursor(0,52);
+    display.println("go to menu!");
+    display.display();
+    //return;
+  }
+  
+  //MENU DISPLAY    
   if (fsm.state == fsm_menu && fsm.tis % 1500 <= 750){
     display.clearDisplay();
     display.setCursor(52,0);
@@ -377,7 +397,7 @@ void print_display(fsm_t& fsm, int countmenu){
     display.display();
   }
   
-    if (countmenu == 1 && fsm.tis % 1500 >= 750){
+    if (fsm.state == fsm_menu && countmenu == 1 && fsm.tis % 1500 >= 750){
     display.clearDisplay();
     display.setCursor(52,0);
     display.printf("Menu");
@@ -391,7 +411,7 @@ void print_display(fsm_t& fsm, int countmenu){
     display.printf("Calibrated values");
     display.display();
     }
-    if (countmenu == 2 && fsm.tis % 1500 >= 750){
+    if (fsm.state == fsm_menu && countmenu == 2 && fsm.tis % 1500 >= 750){
     display.clearDisplay();
     display.setCursor(52,0);
     display.printf("Menu");
@@ -405,7 +425,7 @@ void print_display(fsm_t& fsm, int countmenu){
     display.printf("Calibrated values");
     display.display();
     }
-  if (countmenu == 3 && fsm.tis % 1500 >= 750){
+    if (fsm.state == fsm_menu && countmenu == 3 && fsm.tis % 1500 >= 750){
     display.clearDisplay();
     display.setCursor(52,0);
     display.printf("Menu");
@@ -419,7 +439,7 @@ void print_display(fsm_t& fsm, int countmenu){
     display.printf("Calibrated values");
     display.display();
     }
-    if (countmenu == 4 && fsm.tis % 1500 >= 750){
+    if (fsm.state == fsm_menu && countmenu == 4 && fsm.tis % 1500 >= 750){
     display.clearDisplay();
     display.setCursor(52,0);
     display.printf("Menu");
@@ -433,6 +453,126 @@ void print_display(fsm_t& fsm, int countmenu){
     display.printf("Calibrated values <-");
     display.display();
     }     
+
+    //CALIBRATING DISPLAY
+    if (fsm.state == fsm_calibrating && fsm.tis % 2000 < 666) {
+    display.clearDisplay();
+    display.setTextColor(SSD1306_WHITE);
+
+    display.setTextSize(1);
+    display.setCursor(8, 24);
+    display.println("Calibrating values");
+
+    display.setTextSize(3);
+    display.setCursor(16, 40);
+    display.println(". ");
+    display.setTextSize(1);
+    display.display();
+    //return;
+    }
+
+    if (fsm.state == fsm_calibrating && fsm.tis % 2000 >= 666 && fsm.tis % 2000 < 1333) {
+    display.clearDisplay();
+    display.setTextColor(SSD1306_WHITE);
+
+    display.setTextSize(1);
+    display.setCursor(8, 24);
+    display.println("Calibrating values");
+
+    display.setTextSize(3);
+    display.setCursor(16, 40);
+    display.println(". . ");
+    display.setTextSize(1);
+    display.display();
+    }
+
+    if (fsm.state == fsm_calibrating && fsm.tis % 2000 >= 1333) {
+    display.clearDisplay();
+    display.setTextColor(SSD1306_WHITE);
+
+    display.setTextSize(1);
+    display.setCursor(8, 24);
+    display.println("Calibrating values");
+
+    display.setTextSize(3);
+    display.setCursor(16, 40);
+    display.println(". . . ");
+    display.setTextSize(1);
+    display.display();
+    }
+
+    // CALIBRATED state VALUES DISPLAY
+    if (fsm.state == fsm_show_values){
+      display.clearDisplay();
+
+      display.setTextSize(1);
+      display.setTextColor(SSD1306_WHITE); 
+      display.setCursor(0, 0);     
+      
+      display.printf("Wx %.2f\n", imu.w.x - wx_calibrated);
+      display.printf("Wy %.2f\n", imu.w.y - wy_calibrated);
+      display.printf("Wz %.2f\n", imu.w.z - wz_calibrated);
+
+      display.setCursor(64, 0);
+      display.printf("Ax %.2f", imu.a.x - ax_calibrated);
+      display.setCursor(64, 8);
+      display.printf("Ay %.2f", imu.a.y - ay_calibrated);
+      display.setCursor(64, 16);
+      display.printf("Az %.2f", imu.a.z - az_calibrated + 1);
+      display.display();
+    }
+    //Show Values state DISPLAY
+    if (fsm.state == fsm_calibrated){
+      display.clearDisplay();
+      display.setTextSize(1);
+      display.setTextColor(SSD1306_WHITE);
+      display.printf("Calibrated values:"); 
+      display.setCursor(0, 8);     
+      
+      display.printf("Wx %.2f\n", imu.w.x - wx_calibrated);
+      display.printf("Wy %.2f\n", imu.w.y - wy_calibrated);
+      display.printf("Wz %.2f\n", imu.w.z - wz_calibrated);
+
+      display.setCursor(64, 8);
+      display.printf("Ax %.2f", imu.a.x - ax_calibrated);
+      display.setCursor(64, 16);
+      display.printf("Ay %.2f", imu.a.y - ay_calibrated);
+      display.setCursor(64, 24);
+      display.printf("Az %.2f", imu.a.z - az_calibrated + 1);
+      display.setCursor(0,48);
+      display.printf("Make sure values are ");
+      display.setCursor(0,56);
+      display.printf("close to expected.     ");
+      display.display();
+    }
+
+    //Not calibrated state DISPLAY
+    if (fsm.state == fsm_notCalibrated){
+      display.clearDisplay();
+      display.setTextSize(1);
+      display.setCursor(0,0);
+      display.setTextColor(SSD1306_WHITE);
+      display.printf("You should calibrate"); 
+      display.setCursor(0, 8);
+      display.printf("before playing.");
+    
+      display.setCursor(0,24);
+      display.printf("Current values :");
+      display.setCursor(0,32);
+      display.printf("Wx %.2f\n", imu.w.x);
+      display.printf("Wy %.2f\n", imu.w.y);
+      display.printf("Wz %.2f\n", imu.w.z);
+
+      display.setCursor(64, 32);
+      display.printf("Ax %.2f", imu.a.x);
+      display.setCursor(64, 40);
+      display.printf("Ay %.2f", imu.a.y);
+      display.setCursor(64, 48);
+      display.printf("Az %.2f", imu.a.z);
+      display.display();
+      return;
+    }
+
 }
 
 void setup() 
@@ -727,12 +867,14 @@ void loop()
       display.display();
       
       */
-     print_display(fsm1, count_menu);
+     //print_display(fsm1, count_menu);
     }
 
     // OUTPUT NOT_PRESSED OU PRESSING
     if(fsm1.state == fsm_begin || fsm1.state == fsm_pressing){
+      //print_display(fsm1,count_menu);
       // OLED output
+      /*
       display.clearDisplay();
 
       display.setTextSize(1);      // Normal 1:1 pixel scale
@@ -766,29 +908,12 @@ void loop()
       Serial.print("loop ");
       Serial.print(micros() - now);
 
-      Serial.println();
+      Serial.println();*/
     }
 
     // OUTPUT SHOW VALUES
     if (fsm1.state == fsm_show_values){
-      display.clearDisplay();
-
-      display.setTextSize(1);      // Normal 1:1 pixel scale
-      display.setTextColor(SSD1306_WHITE); // Draw white text
-      display.setCursor(0, 0);     // Start at top-left corner
-      
-      display.printf("Wx %.2f\n", imu.w.x - wx_calibrated);
-      display.printf("Wy %.2f\n", imu.w.y - wy_calibrated);
-      display.printf("Wz %.2f\n", imu.w.z - wz_calibrated);
-
-      display.setCursor(64, 0);     // Start at top-left corner
-      display.printf("Ax %.2f", imu.a.x - ax_calibrated);
-      display.setCursor(64, 8);
-      display.printf("Ay %.2f", imu.a.y - ay_calibrated);
-      display.setCursor(64, 16);
-      display.printf("Az %.2f", imu.a.z - az_calibrated + 1);
-
-      display.display();
+      //print_display(fsm1,count_menu);
     }
 
     // Ação estado calibrating (acumular amostras)
@@ -805,10 +930,12 @@ void loop()
       Serial.printf("Ax total %.2f; ", ax_total);
       Serial.printf("Az total %.2f; ", az_total);
       Serial.printf("Count_calibrate %d",count_calibrate);
+      //print_display(fsm1,count_menu);
     }
 
     // Ação estado Calibrated (prints)
     if (fsm1.state == fsm_calibrated){
+      //print_display(fsm1,count_menu);
       Serial.printf("Wx_calibrated: %.2f",wx_calibrated);
       Serial.printf("Wy_calibrated: %.2f",wy_calibrated);
       Serial.printf("Wz_calibrated: %.2f",wz_calibrated);
@@ -817,7 +944,12 @@ void loop()
       Serial.printf("Az_calibrated: %.2f",az_calibrated);
     }
 
+    //Ação Not calibrated
+    if(fsm1.state == fsm_notCalibrated){
+      //print_display(fsm1,count_menu);
+    }
     // OUTPUT PARAMETERS
+    print_display(fsm1,count_menu);
     if (fsm1.state == fsm_parameters){
       Serial.printf("Number of dices :%d \n",number_of_dices);
       Serial.printf("Possible numbers : D%d \n",dice_numbers);
